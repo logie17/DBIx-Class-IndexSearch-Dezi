@@ -1,13 +1,19 @@
 package DBIx::Class::IndexSearch::Dezi;
-use Moose; 
-use MooseX::ClassAttribute;
-use Carp;
+use Moo;
 extends 'DBIx::Class';
 
+use Carp;
+use Module::Load;
+
+__PACKAGE__->mk_classdata( map_to                => undef );
+__PACKAGE__->mk_classdata( query_parameters      => {} );
+__PACKAGE__->mk_classdata( webservice_classname  => undef );
+__PACKAGE__->mk_classdata( _index_fields         => {} );
+__PACKAGE__->mk_classdata( _webservice           => undef );
 
 =head1 NAME
 
-DBIx::Class::IndexSearch::Dezi - The great new DBIx::Class::IndexSearch::Dezi!
+DBIx::Class::IndexSearch::Dezi
 
 =head1 VERSION
 
@@ -19,14 +25,12 @@ our $VERSION = '0.01';
 
 =head1 SYNOPSIS
 
-    package MyApp::Schema::Person; {
+    package MyApp::Schema::Person; 
     use base 'DBIx::Class';
     
     __PACKAGE__->load_components(qw[
         IndexSearch::Dezi
-        PK::Auto
         Core
-        TimeStamp
     ]);
     
     __PACKAGE__->table('person');
@@ -35,117 +39,96 @@ our $VERSION = '0.01';
         person_id => {
             data_type       => 'varchar',
             size            => '36',
-            is_nullable     => 0,
         },
         name => {
             data_type => 'varchar',
-            is_nullable => 0,
             indexed => 1 
-        },
-        age => {
-            data_type => 'integer',
-            is_nullable => 0,
         },
         email => {
             data_type => 'varchar',
             size=>'128',
-        },
-        created => {
-            data_type => 'timestamp',
-            set_on_create => 1,
-            is_nullable => 0,
+            indexed => 1
         },
     );
     
     __PACKAGE__->resultset_class('DBIx::Class::IndexSearch::ResultSet::Dezi');
     __PACKAGE__->belongs_to_index('FooClient', { server => 'http://localhost:6000', map_to => 'person_id' });
 
-=head1 ATTRIBUTES
-
-=head2 index_fields 
-
-Registers index fields.
-
-=cut
-class_has 'index_fields' => ( 
-    traits  => ['Hash'],
-    is      => 'rw', 
-    isa     => 'HashRef[Str]', 
-    default => sub { {} },
-    handles =>  {
-        set_index_field => 'set',
-        get_index_field => 'get',
-        get_index_keys  => 'keys',
-        index_key_exist => 'exists',
-    } 
-);
-
-class_has 'webservice_class' => (
-    is      => 'rw' 
-);
-
-class_has 'query_parameters' => (
-    is      => 'rw' 
-);
-
-class_has 'map_to' => (
-    is      => 'rw'
-);
-
-class_has 'webservice' => (
-    is      => 'rw',
-    lazy    => 1,
-    builder => '_build_webservice'
-);
-
-sub _build_webservice {
-    my ( $class ) = @_;
-
-    my $package_name    = $class->webservice_class;
-        
-    eval "require $package_name";
-    croak "Failed to load indexer: $@" if $@;
-
-    return $package_name->new( server => $class->query_parameters->{server} ) ;
-}
-
 =head1 SUBROUTINES/METHODS
 
-=head2 register_column ( $column, \%info )
+=head2 belongs_to_index ( $class, $webservice_class, \%parameters )
 
-Overrides DBIx::Class's C<register_column>. If %info contains
-the key 'indexed', calls C<register_field>.
+This sets up the the webservice to use and maps the webservice index
+to the DB.
 
 =cut
+sub belongs_to_index {
+    my ( $class, $webservice_classname, $parameters ) = @_;
 
+    croak 'Please specify a webservice' if !$webservice_classname;
+    croak 'Please supply hostname ' if !$parameters->{server};
+    croak 'Please supply map_to ' if !$parameters->{map_to};
+
+    $class->webservice_classname( $webservice_classname );
+    $class->query_parameters( $parameters || {} );
+    $class->map_to( $parameters->{map_to} || '' );
+}
+
+=head2 index_key_exists ( $class, $key )
+
+Find if the key exists as a registered index field.
+
+=cut
+sub index_key_exists {
+    my( $class, $key ) = @_;
+    return exists $class->_index_fields->{ $key };
+}
+
+=head2 register_column ( $class, $webservice_class, \%parameters )
+
+Override to the register_column method. Add any "indexed" fields we
+want to search against Dezi.
+
+=cut
 sub register_column {
     my ( $class, $column, $info ) = @_;
 
     $class->next::method( $column, $info );
-    
+
     if (exists $info->{ indexed }) {
         $class->set_index_field( $column => $info->{ indexed } );
     }
     
 }
 
-=head2 register_column ( $class, $webservice_class, \%parameters )
+=head2 set_index_field ( $class, $key, $value )
 
-This sets up the the webservice to use and maps the webservice index
-to the DB.
+Setter wrapper to register an indexed field.
 
 =cut
+sub set_index_field {
+    my( $class, $key, $value ) = @_;
+    $class->_index_fields->{ $key } = $value;
+}
 
-sub belongs_to_index {
-    my ( $class, $webservice_class, $parameters ) = @_;
+=head2 webservice ( $class )
 
-    croak 'Please specify a webservice' if !$webservice_class;
-    croak 'Please supply hostname ' if !$parameters->{server};
-    croak 'Please supply map_to ' if !$parameters->{map_to};
+Returns a webservice object.
 
-    $class->webservice_class( $webservice_class );
-    $class->query_parameters( $parameters || {} );
-    $class->map_to( $parameters->{map_to} || '' );
+=cut
+sub webservice {
+    my ( $class ) = @_;
+
+    if ( !$class->_webservice && $class->webservice_classname ) {
+        my $webservice_classname = $class->webservice_classname;
+
+        load $webservice_classname;
+
+        my $webservice_obj = $webservice_classname->new(server => $class->query_parameters->{server});
+        $class->_webservice($webservice_obj);
+    }
+
+    return $class->_webservice;
 }
 
 =head1 AUTHOR
