@@ -1,12 +1,12 @@
 package DBIx::Class::IndexSearch::ResultSet::Dezi;
 
-use Moose; 
+use Moo;
 extends 'DBIx::Class::ResultSet';
-use Carp;
 
+use Carp;
 =head1 SUBROUTINES/METHODS
 
-=head2 dezi_search ( \%search, \%attributes )
+=head2 search_dezi ( $self, \%search, \%attributes )
 
 Searches the Dezi webservice for results and maps the results over
 to inflate objects.
@@ -28,7 +28,7 @@ sub search_dezi {
 
     while ( my $column = shift @search ) {
         my $value = shift @search;
-        if ( $result_class->index_key_exist($column) ) {
+        if ( $result_class->index_key_exists($column) ) {
             my $dezi = $result_class->webservice;
             my $response = $dezi->search( q => $value );
 
