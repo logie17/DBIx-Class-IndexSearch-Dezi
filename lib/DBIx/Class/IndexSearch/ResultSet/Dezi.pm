@@ -21,8 +21,6 @@ sub search_dezi {
                  ref $search eq 'HASH'  ? %{$search} :
                  croak 'search_dezi only accepts an arrayref or a hashref';
 
-    my $query = [];
-
     my $map_field = $result_class->map_to;
     my @ids;
 
