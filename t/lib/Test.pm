@@ -1,36 +1,23 @@
 package Test;
 
-use strict;
-use warnings;
-
+use Moo;
 use MyApp::Schema;
 
-our $dbfile = './t/tmp/test.db';
-our $dsn    = "dbi:SQLite:${dbfile}";
-
+our $dsn    = "dbi:SQLite::memory:";
 our $schema = MyApp::Schema->connect($dsn);
 
 sub initialize
 {
-    unlink($dbfile) if -e './t/tmp/test.db';
-    mkdir('./t/tmp/') unless -d './t/tmp';
-
     my $dbh = $schema->storage->dbh;
+    my ($sql, $in);
 
-    if ($ENV{"DBICTEST_SQLT_DEPLOY"}) {
-        $schema->deploy;
-    }
-    else {
-        open IN, "t/sql/sqlite.sql";
+    open ($in, "<", "t/sql/sqlite.sql");
+    { local $/ = undef; $sql = <$in>; }
+    close $in;
 
-        my $sql;
-        { local $/ = undef; $sql = <IN>; }
-        close IN;
+    $dbh->do($_) for split(/\n\n/, $sql);
 
-        $dbh->do($_) for split(/\n\n/, $sql);
-    }
-
-    return($schema);
+    return $schema;
 }
 
 1;
