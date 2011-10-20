@@ -3,3 +3,6 @@ Revision history for DBIx-Class-IndexSearch-Dezi
 0.01    10/19/2011
         Initial Release
 
+0.02    10/19/2011
+        Added skipping unnecessary repo files.
+
