@@ -14,6 +14,7 @@ requires 'DBIx::Class::Resultset';
 requires 'DBIx::Class';
 
 test_requires 'Test::More';
+test_requires 'DBIx::Class::TimeStamp';
 
 auto_install;
 
