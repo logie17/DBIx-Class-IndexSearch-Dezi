@@ -15,5 +15,5 @@ Revision history for DBIx-Class-IndexSearch-Dezi
 0.05    02/09/2012
         Updated dependency in Makefile.pl to include DBIx::Class::TimeStamp to
         fix broken unit test.
-        Removed superfluousa dependencies.
+        Removed superfluous dependencies.
 
